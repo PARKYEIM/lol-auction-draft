@@ -32,8 +32,21 @@ if "bid_end_time" not in st.session_state:
 if "passed_players" not in st.session_state:
     st.session_state.passed_players = []
 
+# URL에서 감독 이름 가져오기
+query_params = st.experimental_get_query_params()
+manager_name = query_params.get("manager", [None])[0]
+
 st.title("🎮 LoL 내전 팀 경매 시스템")
 st.markdown("10초 이내에 입찰 없으면 유찰! 다시 입찰 시 남은 시간 리셋!")
+
+if manager_name:
+    st.markdown(f"**현재 접속한 감독: `{manager_name}`**")
+    if manager_name not in managers:
+        st.error("❌ 올바르지 않은 감독 이름입니다. URL에 ?manager=예인 와 같이 입력하세요.")
+        st.stop()
+else:
+    st.warning("❗ URL에 ?manager=예인 와 같이 감독 이름을 입력해 주세요.")
+    st.stop()
 
 # 현재 선수 보여주기
 if st.session_state.current_index < len(st.session_state.auction_list):
@@ -63,15 +76,14 @@ if st.session_state.current_index < len(st.session_state.auction_list):
         st.experimental_rerun()
 
     st.subheader("입찰하기")
-    for manager in managers:
-        disabled = role in st.session_state.teams[manager]['players']
-        budget = st.session_state.teams[manager]['budget']
-        bid_input = st.number_input(f"{manager} 입찰가 입력 (현재 예산: {budget}P)", min_value=st.session_state.current_bid + 1, max_value=budget, step=1, key=f"input_{manager}", disabled=disabled)
-        if st.button(f"{manager} 입찰", key=f"bid_{manager}", disabled=disabled or bid_input <= st.session_state.current_bid):
-            st.session_state.current_bid = bid_input
-            st.session_state.current_bidder = manager
-            st.session_state.bid_end_time = time.time() + 10
-            st.experimental_rerun()
+    disabled = role in st.session_state.teams[manager_name]['players']
+    budget = st.session_state.teams[manager_name]['budget']
+    bid_input = st.number_input(f"{manager_name} 입찰가 입력 (현재 예산: {budget}P)", min_value=st.session_state.current_bid + 1, max_value=budget, step=1, key=f"input_{manager_name}", disabled=disabled)
+    if st.button(f"{manager_name} 입찰", key=f"bid_{manager_name}", disabled=disabled or bid_input <= st.session_state.current_bid):
+        st.session_state.current_bid = bid_input
+        st.session_state.current_bidder = manager_name
+        st.session_state.bid_end_time = time.time() + 10
+        st.experimental_rerun()
 else:
     st.success("✅ 모든 선수의 1차 경매가 완료되었습니다!")
 
