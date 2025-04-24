@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import time
 
 st.set_page_config(page_title="LoL 내전 팀 경매", layout="centered")
 
@@ -22,40 +23,67 @@ if "auction_list" not in st.session_state:
     random.shuffle(st.session_state.auction_list)
 if "current_index" not in st.session_state:
     st.session_state.current_index = 0
+if "current_bid" not in st.session_state:
+    st.session_state.current_bid = 0
+if "current_bidder" not in st.session_state:
+    st.session_state.current_bidder = None
+if "bid_end_time" not in st.session_state:
+    st.session_state.bid_end_time = time.time() + 10
+if "passed_players" not in st.session_state:
+    st.session_state.passed_players = []
 
 st.title("🎮 LoL 내전 팀 경매 시스템")
-st.markdown("감독이 포인트로 선수를 경매하여 팀을 구성합니다.")
+st.markdown("10초 이내에 입찰 없으면 유찰! 다시 입찰 시 남은 시간 리셋!")
 
 # 현재 선수 보여주기
 if st.session_state.current_index < len(st.session_state.auction_list):
     role, player = st.session_state.auction_list[st.session_state.current_index]
     st.header(f"🚨 경매 중: [{role}] {player}")
 
-    with st.form(key=f"bid_form_{st.session_state.current_index}"):
-        bids = {}
-        for manager in managers:
-            disabled = role in st.session_state.teams[manager]['players']
-            budget = st.session_state.teams[manager]['budget']
-            label = f"{manager} 입찰가 (예산: {budget}P){' - 이미 보유' if disabled else ''}"
-            bid = st.number_input(label, min_value=0, max_value=budget, step=1, key=f"bid_{manager}", disabled=disabled)
-            bids[manager] = bid if not disabled else 0
-        submitted = st.form_submit_button("📣 입찰 제출")
+    col1, col2 = st.columns(2)
+    col1.metric("현재 입찰가", f"{st.session_state.current_bid}P")
+    col2.metric("입찰자", st.session_state.current_bidder or "없음")
 
-        if submitted:
-            valid_bids = {m: b for m, b in bids.items() if b > 0}
-            if not valid_bids:
-                st.warning(f"{player}는 낙찰되지 않았습니다. 다음 선수로 넘어갑니다.")
-            else:
-                winner = max(valid_bids, key=valid_bids.get)
-                price = valid_bids[winner]
-                st.session_state.teams[winner]['budget'] -= price
-                st.session_state.teams[winner]['players'][role] = player
-                st.success(f"🎉 {player}는 {winner} 감독에게 {price}P에 낙찰!")
+    remaining = int(st.session_state.bid_end_time - time.time())
+    st.markdown(f"⏳ 남은 시간: `{remaining}` 초")
 
-            st.session_state.current_index += 1
+    if remaining <= 0:
+        if st.session_state.current_bidder:
+            st.success(f"🎉 {player}는 {st.session_state.current_bidder}에게 {st.session_state.current_bid}P에 낙찰!")
+            st.session_state.teams[st.session_state.current_bidder]['budget'] -= st.session_state.current_bid
+            st.session_state.teams[st.session_state.current_bidder]['players'][role] = player
+        else:
+            st.warning(f"❌ {player}는 유찰되었습니다.")
+            st.session_state.passed_players.append((role, player))
+
+        st.session_state.current_index += 1
+        st.session_state.current_bid = 0
+        st.session_state.current_bidder = None
+        st.session_state.bid_end_time = time.time() + 10
+        st.experimental_rerun()
+
+    for manager in managers:
+        disabled = role in st.session_state.teams[manager]['players']
+        budget = st.session_state.teams[manager]['budget']
+        if st.button(f"{manager} 입찰 +1P (잔액: {budget}P)", key=manager, disabled=disabled or budget < st.session_state.current_bid + 1):
+            st.session_state.current_bid = st.session_state.current_bid + 1
+            st.session_state.current_bidder = manager
+            st.session_state.bid_end_time = time.time() + 10
             st.experimental_rerun()
 else:
-    st.success("✅ 모든 선수의 경매가 완료되었습니다!")
+    st.success("✅ 모든 선수의 1차 경매가 완료되었습니다!")
+
+    # 유찰된 선수 재경매 리스트
+    if st.session_state.passed_players:
+        st.markdown("---")
+        st.subheader("🌀 유찰 선수 재경매 준비됨")
+        st.session_state.auction_list = st.session_state.passed_players
+        st.session_state.passed_players = []
+        st.session_state.current_index = 0
+        st.session_state.current_bid = 0
+        st.session_state.current_bidder = None
+        st.session_state.bid_end_time = time.time() + 10
+        st.experimental_rerun()
 
 # 현재 팀 상태 표시
 st.subheader("📊 현재 팀 구성")
