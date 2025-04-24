@@ -62,11 +62,13 @@ if st.session_state.current_index < len(st.session_state.auction_list):
         st.session_state.bid_end_time = time.time() + 10
         st.experimental_rerun()
 
+    st.subheader("입찰하기")
     for manager in managers:
         disabled = role in st.session_state.teams[manager]['players']
         budget = st.session_state.teams[manager]['budget']
-        if st.button(f"{manager} 입찰 +1P (잔액: {budget}P)", key=manager, disabled=disabled or budget < st.session_state.current_bid + 1):
-            st.session_state.current_bid = st.session_state.current_bid + 1
+        bid_input = st.number_input(f"{manager} 입찰가 입력 (현재 예산: {budget}P)", min_value=st.session_state.current_bid + 1, max_value=budget, step=1, key=f"input_{manager}", disabled=disabled)
+        if st.button(f"{manager} 입찰", key=f"bid_{manager}", disabled=disabled or bid_input <= st.session_state.current_bid):
+            st.session_state.current_bid = bid_input
             st.session_state.current_bidder = manager
             st.session_state.bid_end_time = time.time() + 10
             st.experimental_rerun()
